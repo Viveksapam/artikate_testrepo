@@ -22,6 +22,8 @@ services:
       - .:/app
     ports:
       - "8000:8000"
+    environment:
+      POSTGRES_HOST: db
     env_file:
       - .env
     depends_on:
@@ -33,6 +35,8 @@ services:
     command: celery -A config worker -l info
     volumes:
       - .:/app
+    environment:
+      POSTGRES_HOST: db
     env_file:
       - .env
     depends_on:

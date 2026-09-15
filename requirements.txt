@@ -23,3 +23,5 @@ tzdata==2026.4
 tzlocal==5.4.4
 vine==5.1.0
 wcwidth==0.8.3
+pytest==9.1.1
+pytest-django==4.12.0
