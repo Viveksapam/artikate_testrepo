@@ -96,10 +96,13 @@ def test_concurrency_checkout(test_asset):
     due = timezone.now() + timedelta(days=2)
 
     def attempt_checkout(code):
+        from django.db import connection
         try:
             return checkout_asset(asset_tag=test_asset.asset_tag, employee_code=code, due_at=due)
         except Exception as e:
             return e
+        finally:
+            connection.close()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -148,3 +151,46 @@ def test_task_idempotency(test_employee, test_asset):
 
     flag_overdue_checkouts()
     assert OverdueNotice.objects.filter(checkout=checkout).count() == 1
+
+
+@pytest.mark.django_db
+def test_overdue_calculation_exact_now(auth_client, test_employee, test_asset):
+    """Test overdue calculation including item due exactly now or in the past."""
+    test_asset.status = "CHECKED_OUT"
+    test_asset.save()
+
+    now = timezone.now()
+    # Checkout due exactly now
+    checkout = CheckOut.objects.create(
+        asset=test_asset,
+        employee=test_employee,
+        due_at=now
+    )
+
+    response = auth_client.get('/api/v1/reports/overdue/')
+    assert response.status_code == 200
+    report = response.json()
+    assert len(report) >= 1
+    assert any(r['checkout_id'] == checkout.id for r in report)
+
+
+@pytest.mark.django_db
+def test_return_already_returned_checkout_conflict(auth_client, test_employee, test_asset):
+    """Rule 6: Returning an already-returned check-out -> 409 Conflict."""
+    test_asset.status = "CHECKED_OUT"
+    test_asset.save()
+
+    checkout = CheckOut.objects.create(
+        asset=test_asset,
+        employee=test_employee,
+        due_at=timezone.now() + timedelta(days=5)
+    )
+
+    # First return: 200 OK
+    resp1 = auth_client.post(f'/api/v1/checkouts/{checkout.id}/return/', {}, format='json')
+    assert resp1.status_code == 200
+
+    # Second return: 409 Conflict
+    resp2 = auth_client.post(f'/api/v1/checkouts/{checkout.id}/return/', {}, format='json')
+    assert resp2.status_code == 409
+    assert "already been returned" in resp2.json()['error']
