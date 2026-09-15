@@ -30,7 +30,7 @@ services:
 
   celery:
     build: .
-    command: celery -A config worker -l info
+    command: celery -A config worker --beat -l info
     volumes:
       - .:/app
     env_file:

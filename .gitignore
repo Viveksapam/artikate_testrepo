@@ -17,5 +17,8 @@ postgres_data/
 db.sqlite3
 
 # Personal notes & Assignment PDF
-Notes.txt
-Artikate_Backend_Developer_Assignment.pdf
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule.dir
+celerybeat-schedule.bak

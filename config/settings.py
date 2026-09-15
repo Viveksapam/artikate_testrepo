@@ -143,6 +143,12 @@ CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_BEAT_SCHEDULE = {
+    'flag-overdue-checkouts-hourly': {
+        'task': 'core.tasks.flag_overdue_checkouts',
+        'schedule': 3600.0,  # Run every hour
+    },
+}
 
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
@@ -157,8 +163,13 @@ REST_FRAMEWORK = {
 }
 
 # Simple JWT Configuration
+_jwt_signing_key = os.getenv('SECRET_KEY', 'django-insecure-4#+al$&s!6sab86#r@_1e3gmfo=vy@vfk--7^dv(&igdrk)t61')
+if len(_jwt_signing_key) < 32:
+    _jwt_signing_key = _jwt_signing_key.ljust(32, '_')
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'SIGNING_KEY': _jwt_signing_key,
 }
