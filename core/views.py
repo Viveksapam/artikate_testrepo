@@ -88,10 +88,14 @@ class AssetReturnView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         
         try:
-            checkout_obj = CheckOut.objects.get(pk=pk, returned_at__isnull=True)
-            asset_tag = checkout_obj.asset.asset_tag
+            checkout_obj = CheckOut.objects.get(pk=pk)
         except CheckOut.DoesNotExist:
-            return Response({"error": f"Active check-out with ID '{pk}' not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": f"Check-out with ID '{pk}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if checkout_obj.returned_at is not None:
+            return Response({"error": f"Check-out with ID '{pk}' has already been returned."}, status=status.HTTP_409_CONFLICT)
+
+        asset_tag = checkout_obj.asset.asset_tag
         
         try:
             checkout = return_asset(
