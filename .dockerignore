@@ -1,15 +1,19 @@
 # Python & Environments
 venv/
 .venv/
-.env
 __pycache__/
 *.pyc
 
-# Editor settings
+# Git & Secrets
+.git/
+.gitignore
+.env
+
+# Editor Settings
 .vscode/
 .idea/
 
-# PostgreSQL local volume & dumps
+# Local Database Data & Dumps
 pgdata/
 postgres_data/
 *.sql
