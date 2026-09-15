@@ -9,24 +9,24 @@ class AssetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Asset
-        fields = ['id', 'asset_tag', 'name', 'category', 'status', 'current_holder', 'created_at']
+        fields = ['id', 'asset_tag', 'name', 'category', 'status', 'purchase_date', 'current_holder', 'created_at']
         read_only_fields = ['status', 'current_holder', 'created_at']
 
     def get_current_holder(self, obj):
         if obj.status == Asset.Status.AVAILABLE:
             return None
-        active_checkout = obj.checkouts.filter(returned_at__isnull=True).first()
+        active_checkout = obj.checkouts.filter(returned_at__isnull=True).select_related('employee').first()
         if active_checkout and active_checkout.employee:
             return {
                 'employee_code': active_checkout.employee.employee_code,
-                'name': active_checkout.employee.name
+                'full_name': active_checkout.employee.full_name  # Fixed: changed 'name' to 'full_name'
             }
         return None
 
 
 class CheckOutCreateSerializer(serializers.Serializer):
-    asset_tag = serializers.CharField(max_length=100)
-    employee_code = serializers.CharField(max_length=100)
+    asset_tag = serializers.CharField(max_length=32)
+    employee_code = serializers.CharField(max_length=16)
     due_at = serializers.DateTimeField()
 
     def validate_due_at(self, value):

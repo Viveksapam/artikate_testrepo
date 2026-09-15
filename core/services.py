@@ -13,16 +13,17 @@ class ResourceNotFoundException(ServiceException):
     pass
 
 
-class BusinessRuleViolationException(ServiceException):
-    """Maps to 400 Bad Request or 409 Conflict."""
+class ValidationException(ServiceException):
+    """Maps to 400 Bad Request."""
+    pass
+
+
+class ConflictException(ServiceException):
+    """Maps to 409 Conflict."""
     pass
 
 
 def checkout_asset(*, asset_tag: str, employee_code: str, due_at) -> CheckOut:
-    """
-    Processes asset check-out with row-level locking to prevent race conditions.
-    Enforces Rules 1, 2, 3, 5, 7, and 8.
-    """
     with transaction.atomic():
         # Rule 7 & 8: Database-level row locking with select_for_update()
         try:
@@ -35,25 +36,25 @@ def checkout_asset(*, asset_tag: str, employee_code: str, due_at) -> CheckOut:
         except Employee.DoesNotExist:
             raise ResourceNotFoundException(f"Employee '{employee_code}' not found.")
 
-        # Rule 1: Asset must be AVAILABLE
+        # Rule 1: Asset must be AVAILABLE -> 409 Conflict
         if asset.status != Asset.Status.AVAILABLE:
-            raise BusinessRuleViolationException(
+            raise ConflictException(
                 f"Asset '{asset_tag}' is not available for check-out (current status: {asset.status})."
             )
 
-        # Rule 2: Employee must be active
+        # Rule 2: Employee must be active -> 400 Bad Request
         if not employee.is_active:
-            raise BusinessRuleViolationException(
+            raise ValidationException(
                 f"Employee '{employee_code}' is inactive and cannot check out assets."
             )
 
-        # Rule 3: Max 3 active check-outs per employee
+        # Rule 3: Max 3 active check-outs per employee -> 409 Conflict
         active_checkouts_count = CheckOut.objects.filter(
             employee=employee,
             returned_at__isnull=True
         ).count()
         if active_checkouts_count >= 3:
-            raise BusinessRuleViolationException(
+            raise ConflictException(
                 f"Employee '{employee_code}' already has {active_checkouts_count} active check-outs (limit is 3)."
             )
 
@@ -71,33 +72,26 @@ def checkout_asset(*, asset_tag: str, employee_code: str, due_at) -> CheckOut:
 
 
 def return_asset(*, asset_tag: str, condition_note: str = "", needs_maintenance: bool = False) -> CheckOut:
-    """
-    Processes asset check-in, clearing active status and applying maintenance flags.
-    Enforces Rules 5, 6, 7, and 8.
-    """
     with transaction.atomic():
-        # Rule 7 & 8: Row-level lock on the target asset
         try:
             asset = Asset.objects.select_for_update().get(asset_tag=asset_tag)
         except Asset.DoesNotExist:
             raise ResourceNotFoundException(f"Asset '{asset_tag}' not found.")
 
-        # Locate the active check-out record
         checkout = CheckOut.objects.filter(
             asset=asset,
             returned_at__isnull=True
         ).select_for_update().first()
 
+        # Rule 6: Returning an already-returned check-out -> 409 Conflict
         if not checkout:
-            raise BusinessRuleViolationException(f"Asset '{asset_tag}' has no active check-out to return.")
+            raise ConflictException(f"Asset '{asset_tag}' has no active check-out to return.")
 
-        # Rule 6: Record return timestamp and condition
         checkout.returned_at = timezone.now()
         if condition_note:
             checkout.condition_note = condition_note
         checkout.save(update_fields=['returned_at', 'condition_note'])
 
-        # Update asset status based on maintenance requirement
         asset.status = Asset.Status.MAINTENANCE if needs_maintenance else Asset.Status.AVAILABLE
         asset.save(update_fields=['status'])
 
