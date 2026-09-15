@@ -19,3 +19,4 @@ db.sqlite3
 # Personal notes & Assignment PDF
 Notes.txt
 Artikate_Backend_Developer_Assignment.pdf
+celerybeat-schedule
