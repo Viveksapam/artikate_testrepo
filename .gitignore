@@ -1,0 +1,20 @@
+# Python
+venv/
+.env
+__pycache__/
+db.sqlite3
+*.pyc
+
+# Editor settings
+.vscode/
+.idea/
+
+# PostgreSQL local volume & dumps
+pgdata/
+postgres_data/
+*.sql
+*.dump
+
+# Personal notes & Assignment PDF
+Notes.txt
+Artikate_Backend_Developer_Assignment.pdf
