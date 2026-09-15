@@ -100,6 +100,9 @@ def test_concurrency_checkout(test_asset):
             return checkout_asset(asset_tag=test_asset.asset_tag, employee_code=code, due_at=due)
         except Exception as e:
             return e
+        finally:
+            from django.db import connections
+            connections.close_all()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -107,6 +110,9 @@ def test_concurrency_checkout(test_asset):
             executor.submit(attempt_checkout, "EMP-C2")
         ]
         results = [f.result() for f in as_completed(futures)]
+
+    from django.db import connections
+    connections.close_all()
 
     successes = [r for r in results if isinstance(r, CheckOut)]
     conflicts = [r for r in results if isinstance(r, ConflictException)]
