@@ -75,12 +75,20 @@ class Command(BaseCommand):
                 "returned": None,
                 "status": Asset.Status.CHECKED_OUT
             },
-            # Returned on time
+            # Returned on time 1
             {
                 "asset": "SEN-001", "emp": "EMP-003",
                 "checked_out": now - timedelta(days=10),
                 "due": now - timedelta(days=2),
                 "returned": now - timedelta(days=3),
+                "status": Asset.Status.AVAILABLE
+            },
+            # Returned on time 2
+            {
+                "asset": "CAM-002", "emp": "EMP-002",
+                "checked_out": now - timedelta(days=8),
+                "due": now - timedelta(days=1),
+                "returned": now - timedelta(days=2),
                 "status": Asset.Status.AVAILABLE
             },
             # Returned late
@@ -97,14 +105,17 @@ class Command(BaseCommand):
             asset = asset_objs[s["asset"]]
             emp = employee_objs[s["emp"]]
             
-            CheckOut.objects.get_or_create(
+            checkout, created = CheckOut.objects.get_or_create(
                 asset=asset,
                 employee=emp,
+                due_at=s["due"],
                 defaults={
-                    "checked_out_at": s["checked_out"],
-                    "due_at": s["due"],
                     "returned_at": s["returned"],
                 }
+            )
+            CheckOut.objects.filter(id=checkout.id).update(
+                checked_out_at=s["checked_out"],
+                returned_at=s["returned"]
             )
             asset.status = s["status"]
             asset.save(update_fields=["status"])

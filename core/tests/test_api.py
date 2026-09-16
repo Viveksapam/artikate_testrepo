@@ -123,19 +123,134 @@ def test_concurrency_checkout(test_asset):
 
 @pytest.mark.django_db
 def test_employee_summary_endpoint(auth_client, test_employee, test_asset):
-    CheckOut.objects.create(
+    now = timezone.now()
+    # Item 1: returned item, hold duration = 8 days (from 10 days ago to 2 days ago)
+    c1 = CheckOut.objects.create(
         asset=test_asset,
         employee=test_employee,
-        checked_out_at=timezone.now() - timedelta(days=10),
-        due_at=timezone.now() - timedelta(days=5),
-        returned_at=timezone.now() - timedelta(days=2)
+        due_at=now - timedelta(days=5),
+        returned_at=now - timedelta(days=2)
     )
-    
+    CheckOut.objects.filter(id=c1.id).update(checked_out_at=now - timedelta(days=10))
+
+    asset2 = Asset.objects.create(
+        asset_tag="TAG-TEST-02",
+        name="Test Laptop",
+        category="LAPTOP",
+        status="CHECKED_OUT",
+        purchase_date="2025-01-01"
+    )
+    # Item 2: currently held, overdue (due 3 days ago)
+    CheckOut.objects.create(
+        asset=asset2,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=6),
+        due_at=now - timedelta(days=3),
+        returned_at=None
+    )
+
+    asset3 = Asset.objects.create(
+        asset_tag="TAG-TEST-03",
+        name="Test Sensor",
+        category="SENSOR",
+        status="CHECKED_OUT",
+        purchase_date="2025-01-01"
+    )
+    # Item 3: currently held, not overdue (due in 5 days)
+    CheckOut.objects.create(
+        asset=asset3,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=1),
+        due_at=now + timedelta(days=5),
+        returned_at=None
+    )
+
     response = auth_client.get(f'/api/v1/employees/{test_employee.employee_code}/summary/')
     assert response.status_code == 200
     data = response.json()
-    assert data['lifetime_checkouts'] == 1
-    assert data['currently_held'] == 0
+    assert data['lifetime_checkouts'] == 3
+    assert data['currently_held'] == 2
+    assert data['currently_overdue'] == 1
+    assert data['mean_hold_duration_days'] == 8.0
+
+
+@pytest.mark.django_db
+def test_overdue_calculation_including_due_now(auth_client, test_employee):
+    now = timezone.now()
+
+    # Asset 1: overdue by 5 days
+    a1 = Asset.objects.create(
+        asset_tag="TAG-DUE-PAST",
+        name="Past Due Asset",
+        category="CAMERA",
+        status="CHECKED_OUT",
+        purchase_date="2025-01-01"
+    )
+    c1 = CheckOut.objects.create(
+        asset=a1,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=10),
+        due_at=now - timedelta(days=5),
+        returned_at=None
+    )
+
+    # Asset 2: due exactly now
+    a2 = Asset.objects.create(
+        asset_tag="TAG-DUE-NOW",
+        name="Due Now Asset",
+        category="LAPTOP",
+        status="CHECKED_OUT",
+        purchase_date="2025-01-01"
+    )
+    c2 = CheckOut.objects.create(
+        asset=a2,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=2),
+        due_at=now,
+        returned_at=None
+    )
+
+    # Asset 3: due in future (not overdue)
+    a3 = Asset.objects.create(
+        asset_tag="TAG-DUE-FUTURE",
+        name="Future Due Asset",
+        category="SENSOR",
+        status="CHECKED_OUT",
+        purchase_date="2025-01-01"
+    )
+    CheckOut.objects.create(
+        asset=a3,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=1),
+        due_at=now + timedelta(days=3),
+        returned_at=None
+    )
+
+    # Asset 4: already returned (not overdue)
+    a4 = Asset.objects.create(
+        asset_tag="TAG-RETURNED",
+        name="Returned Asset",
+        category="VEHICLE",
+        status="AVAILABLE",
+        purchase_date="2025-01-01"
+    )
+    CheckOut.objects.create(
+        asset=a4,
+        employee=test_employee,
+        checked_out_at=now - timedelta(days=8),
+        due_at=now - timedelta(days=4),
+        returned_at=now - timedelta(days=1)
+    )
+
+    response = auth_client.get('/api/v1/reports/overdue/')
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 2
+    # Ordered by due_at ascending: c1 first (5 days overdue), c2 second (due now, 0 days overdue)
+    assert rows[0]['checkout_id'] == c1.id
+    assert rows[0]['days_overdue'] == 5
+    assert rows[1]['checkout_id'] == c2.id
+    assert rows[1]['days_overdue'] == 0
 
 
 @pytest.mark.django_db
