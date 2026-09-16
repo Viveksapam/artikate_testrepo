@@ -137,7 +137,7 @@ def employee_summary(request, employee_code):
     stats = employee.checkouts.aggregate(
         lifetime_count=Count('id'),
         currently_held=Count('id', filter=Q(returned_at__isnull=True)),
-        currently_overdue=Count('id', filter=Q(returned_at__isnull=True, due_at__lt=now)),
+        currently_overdue=Count('id', filter=Q(returned_at__isnull=True, due_at__lte=now)),
         mean_hold_duration=Avg(hold_duration_expr, filter=Q(returned_at__isnull=False))
     )
 
@@ -160,7 +160,7 @@ def overdue_report(request):
     now = timezone.now()
     overdue_checkouts = CheckOut.objects.filter(
         returned_at__isnull=True,
-        due_at__lt=now
+        due_at__lte=now
     ).select_related('asset', 'employee').order_by('due_at')
 
     report_data = []

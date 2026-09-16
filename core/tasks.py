@@ -14,7 +14,7 @@ def flag_overdue_checkouts():
 
     overdue_checkouts = CheckOut.objects.filter(
         returned_at__isnull=True,
-        due_at__lt=now
+        due_at__lte=now
     )
 
     created_count = 0
