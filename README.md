@@ -6,7 +6,7 @@ A Django REST Framework service for tracking physical equipment check-outs, retu
 
 ## Screen Recording
 
-- Recording link: [Link to Loom or Screen Recording](https://loom.com/share/placeholder)
+- Recording link: [Google drive](https://drive.google.com/file/d/1LISqI2deU1rAx16gClsRn07rVG5snejo/view?usp=sharing)
 
 ---
 
